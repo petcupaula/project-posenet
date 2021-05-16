@@ -24,7 +24,8 @@ from adafruit_servokit import ServoKit
 kit = ServoKit(channels=16)
 eyes_hor = 0
 eyes_vert = 1
-neck_rotate = 2
+neck_hor = 2
+neck_vert = 3
 eyesServoRange = (60, 120)
 neckServoRange = (20, 160)
 
@@ -175,32 +176,23 @@ def set_servos(pan, tlt):
 
     # loop indefinitely
     while True:
-        # the pan and tilt angles are reversed
-        #panAngle = -1 * pan.value
-        #tltAngle = -1 * tlt.value
         panAngle = pan.value + 90
         tltAngle = tlt.value + 90
-        print("pan: " + str(panAngle) + ", tilt: " + str(tltAngle));
+        print("pan: " + str(panAngle) + " tilt: " + str(tltAngle))
         # if the pan angle is within the range, pan
-        if in_range(panAngle, eyesServoRange[0], eyesServoRange[1]):
-            kit.servo[eyes_hor].angle = panAngle
-            print("pan: " + str(panAngle))
-        else:
-            if in_range(panAngle, neckServoRange[0], neckServoRange[1]):
-                kit.servo[neck_rotate].angle = panAngle
-            #if panAngle > eyesServoRange[1]: 
-            #    diff = panAngle - eyesServoRange[1]
-            #    neck_rotate_angle = kit.servo[neck_rotate].angle + (diff/2)
-            #elif panAngle < eyesServoRange[0]:
-            #    diff = eyesServoRange[0] - panAngle
-            #    neck_rotate_angle = kit.servo[neck_rotate].angle - (diff/2)
-            #if in_range(neck_rotate_angle, neckServoRange[0], neckServoRange[1]):
-            #    kit.servo[neck_rotate].angle = neck_rotate_angle
-            #    print("moving neck to: " + str(panAngle))
+        #if in_range(panAngle, eyesServoRange[0], eyesServoRange[1]):
+        #    kit.servo[eyes_hor].angle = panAngle
+        #    #print("pan: " + str(panAngle))
+        #else:
+        if in_range(panAngle, neckServoRange[0], neckServoRange[1]):
+            kit.servo[neck_hor].angle = panAngle
         # if the tilt angle is within the range, tilt
-        if in_range(tltAngle, eyesServoRange[0], eyesServoRange[1]):
-            kit.servo[eyes_vert].angle = tltAngle
-            print("tilt: " + str(tltAngle))
+        #if in_range(tltAngle, eyesServoRange[0], eyesServoRange[1]):
+        #    kit.servo[eyes_vert].angle = tltAngle
+        #    print("tilt: " + str(tltAngle))
+        if in_range(tltAngle, neckServoRange[0], neckServoRange[1]):
+            kit.servo[neck_vert].angle = tltAngle
+            #print("tilt: " + str(tltAngle))
         
 
 def run_detection(objX, objY, centerX, centerY):
@@ -232,8 +224,10 @@ def run_detection(objX, objY, centerX, centerY):
         )
 
         shadow_text(svg_canvas, 10, 20, text_line)
-        for pose in outputs:
-            draw_pose(svg_canvas, pose, src_size, inference_box, objX, objY, centerX, centerY)
+        if len(outputs) > 0:
+            draw_pose(svg_canvas, outputs[0], src_size, inference_box, objX, objY, centerX, centerY)
+        #for pose in outputs:
+        #    draw_pose(svg_canvas, pose, src_size, inference_box, objX, objY, centerX, centerY)
         return (svg_canvas.tostring(), False)
 
     run(run_inference, render_overlay)
@@ -256,11 +250,11 @@ def main():
         # set PID values for panning
         panP = manager.Value("f", 0.30)
         panI = manager.Value("f", 0.10) 
-        panD = manager.Value("f", 0.002)
+        panD = manager.Value("f", 0.005)
         # set PID values for tilting
-        tiltP = manager.Value("f", 0.20)
-        tiltI = manager.Value("f", 0.0)
-        tiltD = manager.Value("f", 0.0)
+        tiltP = manager.Value("f", 0.40)
+        tiltI = manager.Value("f", 0.10)
+        tiltD = manager.Value("f", 0.005)
 
         # we have 4 independent processes
         # 1. objectCenter  - finds/localizes the object
@@ -272,20 +266,20 @@ def main():
             args=(objX, objY, centerX, centerY))
         processPanning = Process(target=pid_process,
             args=(pan, panP, panI, panD, objX, centerX))
-        #processTilting = Process(target=pid_process,
-        #    args=(tlt, tiltP, tiltI, tiltD, objY, centerY))
+        processTilting = Process(target=pid_process,
+            args=(tlt, tiltP, tiltI, tiltD, objY, centerY))
         processSetServos = Process(target=set_servos, args=(pan, tlt))
 
         # start all 4 processes
         processObjectCenter.start()
         processPanning.start()
-        #processTilting.start()
+        processTilting.start()
         processSetServos.start()
 
         # join all 4 processes
         processObjectCenter.join()
         processPanning.join()
-        #processTilting.join()
+        processTilting.join()
         processSetServos.join()
 
 
